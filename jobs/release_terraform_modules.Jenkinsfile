@@ -10,7 +10,7 @@ import org.cloud.PatchVersionFactory
 Boolean checkFolderForDiffs(String path, String tag) {
     git.checkoutBranch(tag)
     try {
-        sh "git diff origin/master..HEAD -- ${WORKSPACE}/terraform/${path}"
+        sh "git diff --quiet --exit-code origin/master..HEAD -- ${WORKSPACE}/terraform/${path}"
         return false
     } catch (ignored) {
         return true
@@ -25,7 +25,14 @@ String getLatestModuleTag(String moduleName) {
 }
 
 def removeVersionPostfix(String moduleName, String tag) {
-  return pVersion.replaceAll("${moduleName}-v", "")
+  return tag.replaceAll("${moduleName}-v", "")
+}
+
+PatchVersionFactory patchVersionFactory(String moduleName) {
+  sshagent(['github-ssh-cred']) {
+    result = git.tagsOf("git@github.com:omegion/terraform-modules.git", "${moduleName}-v")
+  }
+  return result
 }
 
 properties([
@@ -78,7 +85,7 @@ podTemplate(
 
               minorVersion = version.minor(currentVersion, "${moduleName}-v").nextMinorVersion()
 
-              patchVersion = patchVersionFactory().nextPatchVersionFor(minorVersion)
+              patchVersion = patchVersionFactory(moduleName).nextPatchVersionFor(minorVersion)
 
               minVersion = minorVersion.toString()
               echo "Minor: ${minVersion}"
