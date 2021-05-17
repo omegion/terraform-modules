@@ -2,9 +2,15 @@
 
 @Library('cloud-jenkins-common-libraries@master')
 
-Boolean checkFolderForDiffs(String path) {
+import groovy.transform.Field
+import org.cloud.MinorVersion
+import org.cloud.PatchVersion
+import org.cloud.PatchVersionFactory
+
+Boolean checkFolderForDiffs(String path, String tag) {
+    git.checkoutBranch(tag)
     try {
-        sh "git diff --quiet --exit-code master -- ${WORKSPACE}/terraform/${path}"
+        sh "git diff origin/master..HEAD -- ${WORKSPACE}/terraform/${path}"
         return false
     } catch (ignored) {
         return true
@@ -16,6 +22,10 @@ String getLatestModuleTag(String moduleName) {
         returnStdout: true,
         script: "git tag | egrep \"${moduleName}-[^.]+\\.[^.]+\\.[^.]+\" | sort -V | tail -1"
     )
+}
+
+def removeVersionPostfix(String moduleName, String tag) {
+  return pVersion.replaceAll("${moduleName}-v", "")
 }
 
 properties([
@@ -61,8 +71,20 @@ podTemplate(
             // create new tag from MASTER.
           } else {
             // checkout to latest module tag
-            git.checkoutBranch(latestTag)
-            if (checkFolderForDiffs(moduleName)) {
+//             git.checkoutBranch(latestTag)
+            if (checkFolderForDiffs(moduleName, latestTag)) {
+              git.checkoutBranch("master")
+              currentVersion = removeVersionPostfix(moduleName, latestTag)
+
+              minorVersion = version.minor(currentVersion, "${moduleName}-v").nextMinorVersion()
+
+              patchVersion = patchVersionFactory().nextPatchVersionFor(minorVersion)
+
+              minVersion = minorVersion.toString()
+              echo "Minor: ${minVersion}"
+
+              pVersion = patchVersion.toString()
+              echo "Patch: ${pVersion}"
               // create new tag for next version from MASTER.
             }
           }
