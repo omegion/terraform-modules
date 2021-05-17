@@ -13,8 +13,8 @@ Boolean checkFolderForDiffs(String path) {
 
 String getLatestModuleTag(String moduleName) {
     return sh(
-      script: 'git tag | egrep "${moduleName}-[^.]+\.[^.]+\.[^.]+" | sort -V | tail -1',
-      returnStdout: true
+        returnStdout: true,
+        script: 'git tag | egrep "[^.]+\\.[^.]+\\.[^.]+" | sort -V | tail -1'
     )
 }
 
