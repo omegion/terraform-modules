@@ -4,7 +4,7 @@
 
 Boolean checkFolderForDiffs(String path) {
     try {
-        sh "git diff --quiet --exit-code master ${path}"
+        sh "git diff --quiet --exit-code master -- ${WORKSPACE}/terraform/${path}"
         return false
     } catch (ignored) {
         return true
@@ -14,7 +14,7 @@ Boolean checkFolderForDiffs(String path) {
 String getLatestModuleTag(String moduleName) {
     return sh(
         returnStdout: true,
-        script: 'git tag | egrep "${moduleName}-[^.]+\\.[^.]+\\.[^.]+" | sort -V | tail -1'
+        script: "git tag | egrep \"${moduleName}-[^.]+\\.[^.]+\\.[^.]+\" | sort -V | tail -1"
     )
 }
 
@@ -44,32 +44,32 @@ podTemplate(
 
       stage('Loop Modules') {
         // Iterate modules
-        tf = new File('./terraform')
-        tf.eachFile { file ->
-          if (file.isDirectory()) {
-            moduleName = file.getName()
+        def modules = sh(returnStdout: true, script: 'ls -A1 terraform').trim().split(System.getProperty("line.separator"))
+        modules.each { moduleName ->
+          echo "moduleName: ${moduleName}"
 
-            echo "moduleName: ${moduleName}"
+          latestTag = getLatestModuleTag(moduleName)
 
-            latestTag = getLatestModuleTag(moduleName)
+          echo "latestTag: ${latestTag}"
 
-            echo "latestTag: ${latestTag}"
+          if (latestTag == "") {
+            // create new tag with
+            tag = "${moduleName}-v0.1.0"
 
-            if (latestTag == "") {
-              // create new tag with
-              tag = "${moduleName}-v0.1.0"
-              // create new tag from MASTER.
-            } else {
-              // checkout to latest module tag
-              if (checkFolderForDiffs(file)) {
-                // create new tag for next version from MASTER.
-              }
+            echo "Creating new tag for ${moduleName}"
+
+            // create new tag from MASTER.
+          } else {
+            // checkout to latest module tag
+            git.checkoutBranch(latestTag)
+            if (checkFolderForDiffs(moduleName)) {
+              // create new tag for next version from MASTER.
             }
-            // checkout to the latest module tag, how to get latest module tag?
-            // check git diff if is there a change in module directory.
-              // if there is a change, cut new tag <MODULE_NAME>-<VERSION>.
-            // if there is no tag with a module, create new tag for the module.
           }
+          // checkout to the latest module tag, how to get latest module tag?
+          // check git diff if is there a change in module directory.
+            // if there is a change, cut new tag <MODULE_NAME>-<VERSION>.
+          // if there is no tag with a module, create new tag for the module.
         }
       }
     }
