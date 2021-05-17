@@ -21,7 +21,7 @@ String getLatestModuleTag(String moduleName) {
 properties([
     parameters([
         string(name: 'GIT_BRANCH', defaultValue: 'master', description: ''),
-        string(name: ' GIT_URL', defaultValue: 'git@github.com:acquia/cloud-infrastructure-service-library.git', description: ''),
+        string(name: ' GIT_URL', defaultValue: 'git@github.com:omegion/terraform-modules.git', description: ''),
         booleanParam(name: "DRY_RUN", defaultValue: false, description: "")
     ])
 ])
