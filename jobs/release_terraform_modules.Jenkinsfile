@@ -17,24 +17,6 @@ Boolean checkFolderForDiffs(String path, String tag) {
     }
 }
 
-String getLatestModuleTag(String moduleName) {
-    return sh(
-        returnStdout: true,
-        script: "git tag | egrep \"${moduleName}-[^.]+\\.[^.]+\\.[^.]+\" | sort -V | tail -1"
-    )
-}
-
-def removeVersionPostfix(String moduleName, String tag) {
-  return tag.replaceAll("${moduleName}-v", "")
-}
-
-PatchVersionFactory patchVersionFactory(String moduleName) {
-  sshagent(['github-ssh-cred']) {
-    result = git.tagsOf("git@github.com:omegion/terraform-modules.git", "${moduleName}-v")
-  }
-  return result
-}
-
 properties([
     parameters([
         string(name: 'GIT_BRANCH', defaultValue: 'master', description: ''),
@@ -59,46 +41,16 @@ podTemplate(
         checkout(scm)
       }
 
-      stage('Loop Modules') {
+      stage('Check for module changes') {
         // Iterate modules
         def modules = sh(returnStdout: true, script: 'ls -A1 terraform').trim().split(System.getProperty("line.separator"))
         modules.each { moduleName ->
-          echo "moduleName: ${moduleName}"
-
-          latestTag = getLatestModuleTag(moduleName)
-
-          echo "latestTag: ${latestTag}"
-
-          if (latestTag == "") {
-            // create new tag with
-            tag = "${moduleName}-v0.1.0"
-
-            echo "Creating new tag for ${moduleName}"
-
-            // create new tag from MASTER.
+          latestTag = git.latestTag()
+          if (checkFolderForDiffs(moduleName, latestTag)) {
+            echo "New changes are detected for ${moduleName}"
           } else {
-            // checkout to latest module tag
-//             git.checkoutBranch(latestTag)
-            if (checkFolderForDiffs(moduleName, latestTag)) {
-              git.checkoutBranch("master")
-              currentVersion = removeVersionPostfix(moduleName, latestTag)
-
-              minorVersion = version.minor(currentVersion, "${moduleName}-v").nextMinorVersion()
-
-              patchVersion = patchVersionFactory(moduleName).nextPatchVersionFor(minorVersion)
-
-              minVersion = minorVersion.toString()
-              echo "Minor: ${minVersion}"
-
-              pVersion = patchVersion.toString()
-              echo "Patch: ${pVersion}"
-              // create new tag for next version from MASTER.
-            }
+            echo "No new changes are detected for ${moduleName}"
           }
-          // checkout to the latest module tag, how to get latest module tag?
-          // check git diff if is there a change in module directory.
-            // if there is a change, cut new tag <MODULE_NAME>-<VERSION>.
-          // if there is no tag with a module, create new tag for the module.
         }
       }
     }
