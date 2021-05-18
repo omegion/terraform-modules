@@ -3,3 +3,4 @@ variable "variable" {
   type        = string
   default     = "variable"
 }
+

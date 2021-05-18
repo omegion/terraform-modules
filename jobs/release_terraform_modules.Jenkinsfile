@@ -3,18 +3,28 @@
 @Library('cloud-jenkins-common-libraries@master')
 
 import groovy.transform.Field
-import org.cloud.MinorVersion
-import org.cloud.PatchVersion
-import org.cloud.PatchVersionFactory
 
-Boolean checkFolderForDiffs(String path, String tag) {
+String getTerraformDirectory() {
+    return "${WORKSPACE}/terraform"
+}
+
+Boolean checkFolderForDiffs(String moduleName, String tag) {
+    terraformDirectory = getTerraformDirectory()
     git.checkoutBranch(tag)
     try {
-        sh "git diff --quiet --exit-code origin/master..HEAD -- ${WORKSPACE}/terraform/${path}"
+        sh "git diff --quiet --exit-code origin/master..HEAD -- ${terraformDirectory}/${moduleName}"
         return false
     } catch (ignored) {
         return true
     }
+}
+
+String getDiffForModule(String moduleName, String tag) {
+    terraformDirectory = getTerraformDirectory()
+    return sh(
+        returnStdout: true,
+        script: "git diff --name-status origin/master..HEAD -- ${terraformDirectory}/${moduleName}"
+    )
 }
 
 properties([
@@ -42,15 +52,27 @@ podTemplate(
       }
 
       stage('Check for module changes') {
+        changedModules = [:]
+
         // Iterate modules
         def modules = sh(returnStdout: true, script: 'ls -A1 terraform').trim().split(System.getProperty("line.separator"))
         modules.each { moduleName ->
           latestTag = git.latestTag()
           if (checkFolderForDiffs(moduleName, latestTag)) {
             echo "New changes are detected for ${moduleName}"
-          } else {
-            echo "No new changes are detected for ${moduleName}"
+            changedModules[moduleName] = getDiffForModule(moduleName, latestTag)
           }
+        }
+
+        size = changedModules.size()
+        echo "${size} modules are changed."
+
+        if (size > 0) {
+            echo "Cutting new version for changed modules"
+             changedModules.each { module ->
+              echo "Module name: ${module.key}"
+              echo "Module changes: ${module.value}"
+             }
         }
       }
     }
